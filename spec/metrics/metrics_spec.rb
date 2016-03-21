@@ -61,7 +61,7 @@ describe Influxer::Metrics, :query do
       it "sets current time" do
         Timecop.freeze(Time.local(2015))
         dummy_metrics.write!
-        expect(dummy_metrics.time).to eq Time.local(2015)
+        expect(dummy_metrics.time(true)).to eq Time.local(2015)
       end
     end
   end
@@ -70,7 +70,7 @@ describe Influxer::Metrics, :query do
     let(:dummy_metrics) do
       Class.new(described_class) do
         set_series :dummies
-        attributes :user_id, :dummy_id
+        values :user_id, :dummy_id
       end
     end
 
@@ -100,7 +100,7 @@ describe Influxer::Metrics, :query do
 
     let(:dummy_with_proc_series) do
       Class.new(described_class) do
-        attributes :user_id, :test_id
+        values :user_id, :test_id
         set_series ->(metrics) { "test/#{metrics.test_id}/user/#{metrics.user_id}" }
       end
     end
@@ -175,7 +175,7 @@ describe Influxer::Metrics, :query do
       Class.new(described_class) do
         set_series :dummies
         tags :dummy_id, :host
-        attributes :user_id
+        values :user_id
       end
     end
 
@@ -187,6 +187,40 @@ describe Influxer::Metrics, :query do
       expect(point.persisted?).to be_truthy
       expect(point.user_id).to eq 1
       expect(point.dummy_id).to eq 2
+    end
+
+    it "test write data with time and return point" do
+      time_test = Time.now
+      expect(client)
+        .to receive(:write_point).with("dummies", tags: { dummy_id: 2, host: 'test' }, values: { user_id: 1 }, timestamp: time_test.to_i)
+
+      point = dummy_metrics.write(user_id: 1, dummy_id: 2, host: 'test', time: time_test)
+      expect(point.persisted?).to be_truthy
+      expect(point.user_id).to eq 1
+      expect(point.dummy_id).to eq 2
+      expect(point.time).to eq time_test.to_i
+
+      # Rounded because time precision
+      expect(point.time(true)).to eq Time.at time_test.to_i
+    end
+
+    it "test write data with time and precision 'ms'" do
+      time_test = Time.now
+
+      expect(client)
+        .to receive(:write_point).with("dummies", tags: { dummy_id: 2, host: 'test' }, values: { user_id: 1 }, timestamp: (time_test.to_f * 1000).to_i)
+
+      allow(client)
+        .to receive(:time_precision).and_return('ms')
+
+      point = dummy_metrics.write(user_id: 1, dummy_id: 2, host: 'test', time: time_test)
+      expect(point.persisted?).to be_truthy
+      expect(point.user_id).to eq 1
+      expect(point.dummy_id).to eq 2
+      expect(point.time).to eq((time_test.to_f * 1000).to_i)
+
+      # Rounded because time precision
+      expect(point.time(true)).to eq Time.at(point.time / 1000.0)
     end
 
     it "doesn't write data and return false if invalid" do

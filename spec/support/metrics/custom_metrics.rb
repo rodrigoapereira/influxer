@@ -1,4 +1,4 @@
 class CustomMetrics < Influxer::Metrics
   tags :code, :user_id
-  attributes :val
+  values :val
 end

@@ -16,7 +16,7 @@ Influxer provides an ActiveRecord-style way to work with [InfluxDB](https://infl
     class Metrics < Influxer::Metrics
         default_scope -> { time(:hour).limit(1000) }
         tags :account_id
-        attributes :value
+        values :value
         scope :unlimited, -> { limit(nil) }
         scope :by_account, -> (id) { where(account_id: id) if id.present? }
     end

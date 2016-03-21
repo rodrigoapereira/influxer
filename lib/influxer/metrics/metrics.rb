@@ -32,6 +32,7 @@ module Influxer
 
       attr_reader :series
       attr_accessor :tag_names
+      attr_accessor :value_names
 
       def attributes(*attrs)
         attrs.each do |name|
@@ -43,6 +44,12 @@ module Influxer
             @attributes[name]
           end
         end
+      end
+
+      def values(*attrs)
+        attributes(*attrs)
+        self.value_names ||= []
+        self.value_names += attrs.map(&:to_s)
       end
 
       def tags(*attrs)
@@ -108,6 +115,7 @@ module Influxer
     end
 
     delegate :tag_names, to: :class
+    delegate :value_names, to: :class
 
     def initialize(attributes = {})
       @attributes = {}
@@ -132,7 +140,7 @@ module Influxer
     end
 
     def write_point
-      client.write_point unquote(series), values: values, tags: tags
+      client.write_point unquote(series), build_write_point_params
       @persisted = true
     end
 
@@ -154,7 +162,7 @@ module Influxer
 
     # Returns hash with metrics values
     def values
-      @attributes.reject { |k, _| tag_names.include?(k.to_s) }
+      @attributes.select { |k, _| value_names.include?(k.to_s) }
     end
 
     # Returns hash with metrics tags
@@ -162,9 +170,49 @@ module Influxer
       @attributes.select { |k, _| tag_names.include?(k.to_s) }
     end
 
-    attributes :time
+    def time(parse = false)
+      return unless @time
+
+      return parse_timestamp(@time) if parse
+      @time
+    end
+
+    def time=(val)
+      if val.is_a?(Date) || val.is_a?(Time)
+        @time = parse_time(val)
+      else
+        @time
+      end
+    end
 
     private
+
+    def parse_timestamp(val)
+      case client.time_precision
+      when 'ms'
+        Time.at(val / 1_000.0)
+      else
+        Time.at(val)
+      end
+    end
+
+    def parse_time(val)
+      case client.time_precision
+      when 'ms'
+        (val.to_f * 1_000).to_i
+      else
+        val.to_i
+      end
+    end
+
+    def build_write_point_params
+      hash = {}
+      hash.store(:values, values)
+      hash.store(:tags, tags)
+      hash.store(:timestamp, time) if time
+
+      hash
+    end
 
     def unquote(name)
       name.gsub(/(\A['"]|['"]\z)/, '')
