@@ -51,8 +51,10 @@ module Influxer
         where("time > now() - #{TIME_ALIASES[val] || ('1' + val.to_s)}")
       when String
         where("time > now() - #{val}")
+      when ActiveSupport::Duration
+        where("time > now() - #{val}s")
       else
-        where("time > now() - #{val.to_i}s")
+        where("time > now() - #{val.to_i}#{@instance.client.time_precision}")
       end
     end
 
@@ -66,6 +68,10 @@ module Influxer
     #    # select * from metrics where time > 1419984000s
 
     def since(val)
+      if val.is_a? Numeric
+        return where("time > #{val.to_i}#{@instance.client.time_precision}")
+      end
+
       where("time > #{val.to_i}s")
     end
 

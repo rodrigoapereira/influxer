@@ -127,11 +127,32 @@ describe Influxer::Relation, :query do
       it "work with numbers" do
         expect(rel.past(1.day).to_sql).to eq "select * from \"dummy\" where (time > now() - 86400s)"
       end
+
+      it "test precision 'ms' in another query ways but is ignored" do
+        allow(client).to receive(:time_precision).and_return('ms')
+
+        expect(rel.past(:hour).to_sql).to(eq "select * from \"dummy\" where (time > now() - 1h)")
+      end
+
+      it "work with numbers in 'ms' precision" do
+        allow(client).to receive(:time_precision).and_return('ms')
+        expect(rel.past(45).to_sql).to eq "select * from \"dummy\" where (time > now() - 45ms)"
+      end
     end
 
     describe "#since" do
       it "work with datetime" do
         expect(rel.since(Time.utc(2014, 12, 31)).to_sql).to eq "select * from \"dummy\" where (time > 1419984000s)"
+      end
+
+      it "test precision 'ms' in another ways but is ignored" do
+        allow(client).to receive(:time_precision).and_return('ms')
+        expect(rel.since(Time.utc(2014, 12, 31)).to_sql).to eq "select * from \"dummy\" where (time > 1419984000s)"
+      end
+
+      it "work with numbers in 'ms' precision" do
+        allow(client).to receive(:time_precision).and_return('ms')
+        expect(rel.since(45).to_sql).to eq "select * from \"dummy\" where (time > 45ms)"
       end
     end
 
